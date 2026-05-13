@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-13
 **Status:** Accepted
-**Author:** [Your name]
+**Author:** Dhyey Shah
 
 ## Context
 

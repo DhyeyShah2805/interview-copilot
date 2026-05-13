@@ -1,10 +1,7 @@
 # AI Interview Copilot — Product Requirements Doc
 
-**Author:** [Your name]
+**Author:** Dhyey Shah
 **Status:** Draft v1
-**Target launch:** May 28, 2026
-**Last updated:** May 12, 2026
-
 ---
 
 ## 1. Problem
@@ -45,7 +42,7 @@ Out of scope (v1): senior engineers, non-technical roles, leadership interviews.
 7. After the session, user sees a scorecard: per-question scores, weak areas, suggested focus.
 8. Dashboard shows trends across sessions over time.
 
-## 5. Core features (v1 — MUST ship by May 28)
+## 5. Core features
 
 | # | Feature | Why it matters |
 |---|---------|---------------|
@@ -63,11 +60,23 @@ Out of scope (v1): senior engineers, non-technical roles, leadership interviews.
 - **S2** — Company-specific question packs (Meta-style behavioral, Google-style system design).
 - **S3** — Exportable PDF report after each session.
 
-If S1 doesn't ship, list it in the README under "Roadmap" — this is a feature, not a failure.
+## 7. Non Functional Requirements
 
-## 7. Explicit non-goals
+| ID | Category | Requirement | How we meet it |
+|----|----------|-------------|----------------|
+| TNFR-1 | Scalability | Single backend instance shall sustain 100 concurrent SSE streams | Async FastAPI with uvicorn workers; no blocking I/O in hot paths |
+| TNFR-2 | Scalability | pgvector retrieval shall return top-k in ≤50ms up to 1M chunks | HNSW index on the embedding column |
+| TNFR-3 | Observability | Every request shall be traceable via a correlation ID in logs | Middleware injects `X-Request-ID`; structured JSON logs |
+| TNFR-4 | Resilience | LLM API failures shall not crash a session | Exponential backoff with jitter; user-visible "retrying" state after 2s |
+| TNFR-5 | Resilience | DB connection drops shall recover automatically | `pool_pre_ping=True` on the SQLAlchemy engine |
+| TNFR-6 | Security | Secrets shall only be read from environment, never from source | Pydantic Settings with `.env`; `.env` git-ignored |
+| TNFR-7 | Security | CORS shall be allowlist-only, not wildcard | `cors_origins` env var, comma-separated |
+| TNFR-8 | Maintainability | All API request/response shapes shall be validated by Pydantic at boundary | Schemas in `app/schemas/`, used in every route |
+| TNFR-9 | Deployability | Local dev environment shall be reproducible via `docker-compose up` | Postgres + pgvector + api in one compose file |
+| TNFR-10 | Cost | Monthly infrastructure cost shall stay under $20 during launch month | Vercel free tier + Railway hobby; pgvector instead of Pinecone |
 
-These are listed not to be coy — listing non-goals is *itself* a signal of engineering maturity to reviewers.
+## 8. Explicit non-goals
+
 
 - ❌ Live coding interview simulation (whiteboard, code execution sandbox)
 - ❌ Multi-user / collaborative interviews
@@ -78,7 +87,7 @@ These are listed not to be coy — listing non-goals is *itself* a signal of eng
 - ❌ Microservices, Kubernetes, multi-region deploys
 - ❌ Advanced auth (OAuth, MFA, SSO) — JWT only
 
-## 8. Success metrics
+## 9. Success metrics
 
 **Engineering metrics (measurable in code/logs):**
 
@@ -100,7 +109,7 @@ These are listed not to be coy — listing non-goals is *itself* a signal of eng
 - 5 documentation artifacts (this PRD + 4 others)
 - Resume bullet that survives recruiter scrutiny
 
-## 9. Tech stack & rationale
+## 10. Tech stack & rationale
 
 (Full rationale lives in Decision Log — this is the summary.)
 
@@ -113,7 +122,7 @@ These are listed not to be coy — listing non-goals is *itself* a signal of eng
 - **PDF parsing:** `pypdf` for text extraction
 - **Observability:** Structured logging + a simple `/health` endpoint. No Datadog/Grafana in v1.
 
-## 10. Risk register
+## 11. Risk register
 
 | Risk | Likelihood | Mitigation |
 |------|-----------|-----------|
@@ -124,7 +133,7 @@ These are listed not to be coy — listing non-goals is *itself* a signal of eng
 | Scope creep (especially voice) | High | This doc is the anchor — re-read at the start of every day |
 | Burnout in days 10–14 | Medium | Days 10 and 13 are buffer days; don't add features into them |
 
-## 11. Open questions
+## 12. Open questions
 
 (Update this section throughout the build — open questions are normal and showing them is good.)
 
@@ -132,7 +141,7 @@ These are listed not to be coy — listing non-goals is *itself* a signal of eng
 - How do we handle a user who uploads a resume in a language other than English? (v1: English only, document the limitation.)
 - What's the right number of questions per session? (Start with 8, measure, adjust.)
 
-## 12. Out-of-scope follow-ups for v1.1+
+## 13. Out-of-scope follow-ups for v1.1+
 
 - Voice mode
 - Company-specific question packs
