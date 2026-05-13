@@ -23,7 +23,8 @@ email-validator==2.2.0             # required by Pydantic's EmailStr
 
 # --- Auth ---
 python-jose[cryptography]==3.3.0   # JWT encode/decode
-passlib[bcrypt]==1.7.4             # password hashing
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1            # password hashing
 
 # --- File uploads & PDF parsing ---
 python-multipart==0.0.12           # FastAPI multipart form support (Day 3 resume upload)
