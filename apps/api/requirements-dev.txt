@@ -1,0 +1,22 @@
+# =============================================================================
+# Development & test dependencies — Interview Copilot API
+#
+# Install (gets runtime deps + dev deps in one shot):
+#   pip install -r requirements-dev.txt
+# =============================================================================
+
+# Pull in all runtime deps too
+-r requirements.txt
+
+# --- Testing ---
+pytest==8.3.3
+pytest-asyncio==0.24.0             # async test support for our async routes
+pytest-cov==6.0.0                  # coverage reports
+anyio==4.6.2.post1                 # required by httpx for ASGI testing
+
+# --- Linting & formatting ---
+ruff==0.7.2                        # linter + formatter; replaces black, isort, flake8
+mypy==1.13.0                       # static type checking (optional but recommended)
+
+# --- Dev tooling ---
+ipython==8.29.0                    # better REPL for poking at models/DB interactively
