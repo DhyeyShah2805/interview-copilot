@@ -9,7 +9,7 @@ from alembic import context
 
 from app.core.config import settings
 from app.db.base import Base
-import app.models.user  # noqa: F401  register User on Base.metadata
+import app.models  # noqa: F401  register all models on Base.metadata
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
