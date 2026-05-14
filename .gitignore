@@ -58,3 +58,6 @@ uploads/
 # --- Coverage and tests ---
 coverage/
 .nyc_output/
+
+# Claude Code internal worktrees
+.claude/
