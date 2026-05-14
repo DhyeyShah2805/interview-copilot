@@ -1,11 +1,12 @@
 """
 Resume service layer.
 
-Route handlers stay thin — all DB queries, file I/O, and the (placeholder)
-parse pipeline live here.
+Route handlers stay thin — all DB queries, file I/O, and the resume parse
+pipeline (extract -> chunk -> embed -> store) live here.
 """
 
 import asyncio
+import logging
 import uuid
 from pathlib import Path
 
@@ -15,6 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import AsyncSessionLocal
 from app.models.resume import ParseStatus, Resume
+from app.models.resume_chunk import ResumeChunk
+from app.services.chunking_service import chunk_text
+from app.services.embedding_service import embed_texts
+from app.services.pdf_service import extract_text_from_pdf
+
+logger = logging.getLogger(__name__)
 
 _CHUNK_SIZE = 8 * 1024  # 8 KB
 
@@ -24,10 +31,10 @@ async def save_uploaded_file(
     resume_id: uuid.UUID,
     upload_dir: str,
     max_bytes: int,
-) -> int:
+) -> tuple[int, str]:
     """Stream an upload to disk in 8 KB chunks, enforcing a size ceiling.
 
-    Returns the number of bytes written. On overflow the partial file is
+    Returns (bytes_written, file_path). On overflow the partial file is
     removed before raising.
     """
     Path(upload_dir).mkdir(parents=True, exist_ok=True)
@@ -51,7 +58,7 @@ async def save_uploaded_file(
         dest.unlink(missing_ok=True)
         raise
 
-    return total
+    return total, str(dest)
 
 
 async def get_resume_by_id(
@@ -73,16 +80,58 @@ async def list_resumes_for_user(
     return list(result)
 
 
-async def placeholder_parse_resume(resume_id: uuid.UUID) -> None:
-    """Stand-in for the real parse pipeline (Block 3 replaces this body).
+async def parse_resume(resume_id: uuid.UUID, file_path: str) -> None:
+    """Full resume processing pipeline, run as a background task.
 
-    Runs as a background task, so it opens its own session — the request's
-    session is already closed by the time this executes.
+    extract text -> chunk -> embed -> store chunks. Atomic: any failure marks
+    the resume 'failed' and rolls back first, so no partial chunks are ever
+    committed. Opens its own session — the request's session is long closed
+    by the time this runs.
     """
-    await asyncio.sleep(1)
     async with AsyncSessionLocal() as db:
-        resume = await db.get(Resume, resume_id)
-        if resume is None:
-            return
-        resume.parse_status = ParseStatus.processing
-        await db.commit()
+        try:
+            resume = await db.get(Resume, resume_id)
+            if resume is None:
+                logger.error("Resume %s not found; aborting parse", resume_id)
+                return
+
+            resume.parse_status = ParseStatus.processing
+            await db.commit()
+
+            # pypdf is synchronous — run it off the event loop.
+            text = await asyncio.to_thread(extract_text_from_pdf, file_path)
+            resume.raw_text = text
+            await db.commit()
+
+            chunks = chunk_text(text)
+            if not chunks:
+                raise ValueError("Chunking produced zero chunks")
+            embeddings = await embed_texts(chunks)
+            assert len(embeddings) == len(chunks), (
+                f"Embedding count {len(embeddings)} != chunk count {len(chunks)}"
+            )
+
+            for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
+                db.add(
+                    ResumeChunk(
+                        resume_id=resume_id,
+                        content=chunk,
+                        chunk_index=i,
+                        embedding=emb,
+                    )
+                )
+
+            resume.parse_status = ParseStatus.completed
+            await db.commit()
+        except Exception as exc:
+            logger.exception("Resume %s parse failed: %s", resume_id, exc)
+            # Discard any pending ResumeChunk inserts so the 'failed' update
+            # commits cleanly and we don't persist a half-processed resume.
+            await db.rollback()
+            try:
+                resume = await db.get(Resume, resume_id)
+                if resume:
+                    resume.parse_status = ParseStatus.failed
+                    await db.commit()
+            except Exception:
+                await db.rollback()

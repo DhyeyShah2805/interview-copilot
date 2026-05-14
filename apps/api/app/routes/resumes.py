@@ -5,6 +5,7 @@ All routes require a valid access token. Handlers stay thin — file I/O and
 queries live in app.services.resume_service.
 """
 
+import logging
 import uuid
 
 from fastapi import (
@@ -27,9 +28,11 @@ from app.schemas.resume import ResumeListItem, ResumeRead
 from app.services.resume_service import (
     get_resume_by_id,
     list_resumes_for_user,
-    placeholder_parse_resume,
+    parse_resume,
     save_uploaded_file,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -53,7 +56,7 @@ async def upload_resume(
     db.add(resume)
     await db.flush()  # populate resume.id
 
-    await save_uploaded_file(
+    size, file_path = await save_uploaded_file(
         file,
         resume.id,
         settings.upload_dir,
@@ -63,7 +66,8 @@ async def upload_resume(
     await db.commit()
     await db.refresh(resume)
 
-    background_tasks.add_task(placeholder_parse_resume, resume.id)
+    logger.info("Saved resume %s (%d bytes) to %s", resume.id, size, file_path)
+    background_tasks.add_task(parse_resume, resume.id, file_path)
     return resume
 
 
