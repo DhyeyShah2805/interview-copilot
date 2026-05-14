@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     app_name: str = "Interview Copilot API"
     environment: str = Field(default="development")
 
+    # File storage
+    upload_dir: str = Field(default="/app/uploads")
+    max_upload_size_mb: int = Field(default=10)
+
     # Database
     database_url: str = Field(
         default="postgresql+asyncpg://copilot:copilot_dev_password@localhost:5432/interview_copilot"
