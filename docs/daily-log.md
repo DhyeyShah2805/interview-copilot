@@ -27,3 +27,23 @@
 - Implement async PDF parsing + token-aware chunking pipeline (pypdf + tiktoken)
 - Generate embeddings via OpenAI `text-embedding-3-small` and store in pgvector
 - Verify end-to-end with a real resume PDF — upload, parse, chunk, embed, retrieve top-k by similarity
+
+## Day 2 — May 14, 2026
+
+### Completed
+- Added uploads volume and HNSW index migration (HNSW deferred — not needed at current scale)
+- Built POST /resumes with HTTPBearer auth, file size + content-type validation, BackgroundTasks for async processing
+- Built end-to-end parsing pipeline: pypdf extraction → tiktoken chunking → OpenAI text-embedding-3-small → pgvector storage
+- Added structured error handling with rollback on failure; ParseStatus enum transitions atomic
+- Added GET /resumes/{id}/search returning top-k chunks ranked by cosine similarity
+- Tested end-to-end with own resume: parse → 3 chunks @ 1536 dims → semantic search returns relevant chunks
+
+### Notes / what surprised me
+- Spent ~2 hours debugging an "APIConnectionError" that was actually "API key was empty in container." Docker compose substitutes ${VAR} from project-root .env, not apps/api/.env. Two .env files, two different consumers.
+- bcrypt 4.1+ vs passlib 1.7.4 → bcrypt 4.0.1 pin (caught on Day 1 too)
+- Cosine similarity scores for text-embedding-3-small cluster in 0.2-0.5 for relevant matches. Relative ordering is what matters for RAG, not absolute scores.
+
+### Tomorrow (Day 3)
+- Build POST /job-descriptions with same parsing pipeline
+- Add resume + JD skill-gap extraction service (LLM-driven JSON output)
+- Update GET /resumes/{id} response to include chunk count and processing duration

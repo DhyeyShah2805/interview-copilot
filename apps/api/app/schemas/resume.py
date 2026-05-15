@@ -27,3 +27,11 @@ class ResumeListItem(BaseModel):
     filename: str
     parse_status: str
     created_at: datetime
+
+
+class ResumeChunkMatch(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    chunk_index: int
+    content: str
+    similarity: float  # cosine similarity, higher is better (0.0–1.0)

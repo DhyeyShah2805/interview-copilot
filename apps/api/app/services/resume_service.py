@@ -10,6 +10,7 @@ import logging
 import uuid
 from pathlib import Path
 
+import sqlalchemy as sa
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -135,3 +136,51 @@ async def parse_resume(resume_id: uuid.UUID, file_path: str) -> None:
                     await db.commit()
             except Exception:
                 await db.rollback()
+
+
+async def search_chunks(
+    db: AsyncSession,
+    resume_id: uuid.UUID,
+    user_id: uuid.UUID,
+    query_text: str,
+    top_k: int = 5,
+) -> list[dict]:
+    """Return the top-k most similar chunks for a query, scoped to one resume.
+
+    Ownership is re-verified here so the function is safe to call standalone.
+    Similarity is cosine similarity in [0, 1] — higher is a better match.
+    """
+    resume = await get_resume_by_id(db, resume_id, user_id)
+    if resume is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Resume not found"
+        )
+
+    query_embedding = (await embed_texts([query_text]))[0]
+    # pgvector accepts a bracketed literal; cast it to `vector` in-query so we
+    # don't depend on a type adapter being registered on the raw connection.
+    query_vec = "[" + ",".join(str(x) for x in query_embedding) + "]"
+
+    sql = sa.text(
+        """
+        SELECT chunk_index,
+               content,
+               1 - (embedding <=> CAST(:query_vec AS vector)) AS similarity
+        FROM resume_chunks
+        WHERE resume_id = :resume_id
+        ORDER BY embedding <=> CAST(:query_vec AS vector)
+        LIMIT :top_k
+        """
+    )
+    result = await db.execute(
+        sql,
+        {"query_vec": query_vec, "resume_id": resume_id, "top_k": top_k},
+    )
+    return [
+        {
+            "chunk_index": row.chunk_index,
+            "content": row.content,
+            "similarity": row.similarity,
+        }
+        for row in result
+    ]

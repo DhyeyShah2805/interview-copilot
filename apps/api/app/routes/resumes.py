@@ -14,6 +14,7 @@ from fastapi import (
     Depends,
     File,
     HTTPException,
+    Query,
     UploadFile,
     status,
 )
@@ -24,12 +25,13 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models.resume import ParseStatus, Resume
 from app.models.user import User
-from app.schemas.resume import ResumeListItem, ResumeRead
+from app.schemas.resume import ResumeChunkMatch, ResumeListItem, ResumeRead
 from app.services.resume_service import (
     get_resume_by_id,
     list_resumes_for_user,
     parse_resume,
     save_uploaded_file,
+    search_chunks,
 )
 
 logger = logging.getLogger(__name__)
@@ -89,3 +91,22 @@ async def get_resume(
     if resume is None:
         raise HTTPException(status_code=404, detail="Resume not found")
     return resume
+
+
+@router.get("/{resume_id}/search", response_model=list[ResumeChunkMatch])
+async def search_resume(
+    resume_id: uuid.UUID,
+    q: str = Query(..., min_length=1, max_length=500),
+    top_k: int = Query(5, ge=1, le=20),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    resume = await get_resume_by_id(db, resume_id, current_user.id)
+    if resume is None:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    if resume.parse_status != ParseStatus.completed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Resume is not yet processed (status: {resume.parse_status.value})",
+        )
+    return await search_chunks(db, resume_id, current_user.id, q, top_k)
