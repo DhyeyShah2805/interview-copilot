@@ -17,6 +17,7 @@ from app.db.base import Base
 from app.models.resume import ParseStatus
 
 if TYPE_CHECKING:
+    from app.models.interview_session import InterviewSession
     from app.models.user import User
 
 
@@ -46,6 +47,10 @@ class JobDescription(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="job_descriptions")
+    interview_sessions: Mapped[list["InterviewSession"]] = relationship(
+        back_populates="job_description",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<JobDescription {self.title}>"

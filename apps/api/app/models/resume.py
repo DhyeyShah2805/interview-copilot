@@ -17,6 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.interview_session import InterviewSession
     from app.models.resume_chunk import ResumeChunk
     from app.models.user import User
 
@@ -52,6 +53,10 @@ class Resume(Base):
 
     user: Mapped["User"] = relationship(back_populates="resumes")
     chunks: Mapped[list["ResumeChunk"]] = relationship(
+        back_populates="resume",
+        cascade="all, delete-orphan",
+    )
+    interview_sessions: Mapped[list["InterviewSession"]] = relationship(
         back_populates="resume",
         cascade="all, delete-orphan",
     )
