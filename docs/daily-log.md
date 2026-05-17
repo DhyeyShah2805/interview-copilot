@@ -47,3 +47,26 @@
 - Build POST /job-descriptions with same parsing pipeline
 - Add resume + JD skill-gap extraction service (LLM-driven JSON output)
 - Update GET /resumes/{id} response to include chunk count and processing duration
+
+## Day 3 — May 16, 2026
+
+### Completed
+- Built JD CRUD endpoints (POST /job-descriptions, GET list, GET by id) — no parsing pipeline; JD stored as raw text since it's used as prompt context, not retrieval target
+- Built question generation service using OpenAI gpt-4o-mini with structured outputs (JSON schema enforcement)
+- Iterated the system prompt v1 → v2 with documented changelog: fixed anchor-leakage from JD into resume, added required easy warm-up question, tightened type distribution
+- Documented v1 vs v2 comparison in docs/AI-Pipelines/prompts/question_gen/ with identified root cause for remaining behavioral undershoot (resume content scarcity, not prompt issue)
+- Added InterviewSession + InterviewQuestion models with three enum types
+- Generated and applied 4th migration; verified 7 tables total
+- Built POST /interviews (persists session + questions atomically), GET /interviews (list), GET /interviews/{id} (full session with questions)
+- Fixed Pydantic v2 protected_namespaces warning for model_used field
+
+### Notes / what surprised me
+- Prompt iteration discovery: anchor field is the cleanest invariant to enforce. "Anchor must be verbatim from RESUME excerpts" became the most useful constraint — it forces the model to read the resume instead of hallucinating.
+- Claude Code's review notes caught real bugs (HTTPException retry scope, Pydantic namespace) but also hallucinated about missing migrations twice. Treat reviews as candidate issues, verify in DB before acting.
+- The v2 prompt fixed 2 of 3 issues. The third (behavioral undershoot) turned out to be a resume problem, not a prompt problem — captured in CHANGELOG as v3 backlog.
+
+### Tomorrow (Day 4)
+- Build the interview answer pipeline: POST /interviews/{id}/answers
+- Build the evaluation service using Claude Sonnet (STAR + clarity + depth + relevance rubric)
+- Add InterviewAnswer model with the rubric scores
+- End the day able to submit an answer to a generated question and get a real rubric-based score back
