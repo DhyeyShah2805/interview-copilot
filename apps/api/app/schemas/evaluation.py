@@ -17,6 +17,6 @@ class EvaluationRubric(BaseModel):
     depth: int = Field(ge=0, le=5)
     relevance: int = Field(ge=0, le=5)
     overall_score: float = Field(ge=0, le=5)
-    strengths: list[str]
-    weaknesses: list[str]
-    suggested_improvement: str
+    strengths: list[str] = Field(min_length=1, max_length=3)
+    weaknesses: list[str] = Field(min_length=1, max_length=3)
+    suggested_improvement: str = Field(min_length=10)

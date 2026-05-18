@@ -1,5 +1,6 @@
 """
-Request/response schemas for interview generation and persisted sessions.
+Request/response schemas for interview generation, persisted sessions, and
+answer submission/evaluation.
 
 The shape of GeneratedQuestion mirrors the OpenAI structured-output schema
 defined in app.services.question_generation_service — keep both sides in
@@ -11,6 +12,8 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.evaluation import EvaluationRubric
 
 QuestionType = Literal["behavioral", "technical_concept", "technical_project"]
 QuestionDifficulty = Literal["easy", "medium", "hard"]
@@ -79,4 +82,22 @@ class InterviewSessionListItem(BaseModel):
     job_description_id: uuid.UUID
     status: str
     num_questions: int
+    created_at: datetime
+
+
+class InterviewAnswerCreate(BaseModel):
+    question_id: uuid.UUID
+    answer_text: str = Field(min_length=1, max_length=8000)
+
+
+class InterviewAnswerRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
+
+    id: uuid.UUID
+    session_id: uuid.UUID
+    question_id: uuid.UUID
+    answer_text: str
+    evaluation_json: EvaluationRubric | None = None
+    evaluation_status: str
+    evaluator_model: str | None
     created_at: datetime

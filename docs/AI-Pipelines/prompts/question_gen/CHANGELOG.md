@@ -27,3 +27,28 @@ fewer behavioral questions or (b) mislabeling a technical question.
   (conflict, learning, deadline pressure) without requiring a verbatim resume substring.
 - Add a type-validation pass: after generation, verify each question's content actually 
   matches its declared type. Reject and regenerate if labels lie.
+
+
+### v3 results
+
+**Bad answer test** ("I don't remember the details..."):
+- All four dimensions: 0/0/0/0
+- Overall: 0
+- Strengths: 3 minimal but genuine ("Acknowledged uncertainty honestly", 
+  "Kept response brief rather than padding with filler", "Stated libraries 
+  were used")
+- Weaknesses: 3 sharp callouts about missing specifics
+- Suggested improvement: concrete and references the question's domain 
+  (LangGraph, external APIs)
+
+Calibration now works in both directions: strong answers score 4 with 
+real critique, bad answers score 0-1 with minimal-but-real strengths 
+and sharp weaknesses. The rubric is shippable.
+
+### Open issues for v4 (not planned)
+
+- The "minimal positive" pattern for bad answers could be exploited by 
+  candidates (e.g., always starting answers with "I'll be honest..." to 
+  guarantee an "intellectual honesty" strength). Not worth fixing for v1.
+- Difficulty level still isn't used in scoring — could affect calibration 
+  for easy warm-up questions vs hard stretch questions.

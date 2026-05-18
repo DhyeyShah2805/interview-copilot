@@ -70,3 +70,40 @@
 - Build the evaluation service using Claude Sonnet (STAR + clarity + depth + relevance rubric)
 - Add InterviewAnswer model with the rubric scores
 - End the day able to submit an answer to a generated question and get a real rubric-based score back
+
+## Day 4 — May 18, 2026
+
+### Completed
+- Added InterviewAnswer model with JSONB evaluation_json column and AnswerEvaluationStatus enum (pending / evaluating / completed / failed)
+- Generated and applied 5th migration; 8 database tables now
+- Built evaluation service using OpenAI gpt-4o-mini with structured outputs and a 4-dimension rubric:
+  - Clarity (0-5): structure, readability, freedom from rambling
+  - Structure (0-5): STAR for behavioral; problem→approach→tradeoffs→result for technical
+  - Depth (0-5): specificity, technical accuracy, real ownership signals
+  - Relevance (0-5): did the answer address what was asked
+  - Weighted overall_score with type-aware scoring guidance
+- Added "anchor grounding" instruction to evaluation prompt — answers must demonstrate ownership of the specific resume phrase referenced in the question, not give generic textbook responses
+- Built `POST /interviews/{session_id}/answers` with sync evaluation flow and status transition (not_started → in_progress on first answer)
+- Built `GET /interviews/{session_id}/answers` list endpoint
+- Iterated evaluation prompt across THREE versions:
+  - **v1:** Grade-inflated 5/5/5/5 with empty weaknesses array despite explicit anti-inflation language in prompt. Schema allowed empty arrays, removing the forcing function.
+  - **v2:** Strengthened calibration with anti-inflation rules ("if you find yourself giving 5/5/5/5, drop a dimension"). Added Pydantic `min_length=1` on strengths/weaknesses and `min_length=10` on suggested_improvement. Wired EvaluationRubric.model_validate() into the service (caught by Claude Code review — without this the validation only ran at FastAPI response serialization, after persistence). Added ValidationError to tenacity's retry tuple so calibration failures self-correct.
+  - **v3:** v2 fixed grade inflation but broke bad-answer evaluation — Pydantic rejected legitimately weak answers where no real strengths exist. Tenacity retried 3x, all failed validation, answer was stored with evaluation_status='failed'. Fixed by updating the prompt to require minimal-but-real strengths even for poor answers (intellectual honesty, brevity over filler).
+- Verified calibration works in both directions:
+  - Strong answer (NodeMind MCP detail): 4/4/4/4 with 3 specific weaknesses identifying real gaps
+  - Bad answer ("I don't remember"): 0/0/0/0 with 3 minimal-but-real strengths and 3 sharp weaknesses
+- Documented all three iterations in `docs/AI-Pipelines/prompts/evaluation/` with v1/v2/v3 outputs and CHANGELOG explaining root causes and fixes
+
+### Notes / what surprised me
+- OpenAI strict JSON schema mode doesn't support minItems/maxItems/minLength constraints. Enforcement has to happen at the Pydantic layer, not the schema layer.
+- Pydantic validation has to be wired INTO the service function (not just on the response model) for tenacity retry to catch it. FastAPI's response-serialization validation runs after persistence — too late to retry.
+- The "calibration in both directions" test is the real readiness signal. A rubric that scores good answers well is trivial; the bar is making it score bad answers honestly too. v2 passed the first test and failed the second.
+- Claude Code's review caught a real bug in my prompt — it noticed my "validation triggers retry" claim wouldn't work because (a) validation wasn't called in the service, and (b) ValidationError wasn't in the retry tuple. Two-stage review (Claude Code self-critique → my final approval) has now caught real bugs in three separate blocks.
+- "Minimal but real" strengths for poor answers — "acknowledged uncertainty honestly," "stayed on-topic," "kept it brief" — is genuinely how senior interviewers give feedback to junior candidates. Not flattery, just pointing at the one thing they did right. Adopting this pattern matched real interviewer behavior.
+
+### Tomorrow (Day 5)
+- Pivot to frontend — Next.js has been mostly placeholder pages
+- Build login + register pages wired to /auth endpoints (JWT in httpOnly cookies)
+- Resume upload UI with drag-and-drop and parse_status polling
+- Job description form
+- Dashboard listing previous interview sessions with status badges

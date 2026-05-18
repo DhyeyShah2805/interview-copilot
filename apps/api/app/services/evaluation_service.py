@@ -14,6 +14,7 @@ import logging
 
 import openai
 from openai import AsyncOpenAI
+from pydantic import ValidationError
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -22,6 +23,7 @@ from tenacity import (
 )
 
 from app.core.config import settings
+from app.schemas.evaluation import EvaluationRubric
 
 _client = AsyncOpenAI(api_key=settings.openai_api_key)
 _MODEL = "gpt-4o-mini"
@@ -92,14 +94,31 @@ Then provide:
 GROUNDING IN THE RESUME ANCHOR
 The question is grounded in a verbatim phrase from the candidate's resume (the "anchor"). This means the question is asking about something the candidate actually did — not hypothetically. The answer must demonstrate real ownership of that specific work, not substitute a generic framing that could apply to anyone. If the answer ignores the anchored experience, gives a textbook response without referencing their own work, or contradicts what's stated in the anchor — that's a significant DEPTH and RELEVANCE penalty.
 
-Calibration: most real-interview answers score 2-3. A 4 is a genuinely strong answer. A 5 is exceptional. Reserve high scores accordingly. If the candidate says "I don't know" or gives a non-answer, score low across all dimensions and explain.
+CALIBRATION (CRITICAL — READ TWICE):
+- Most real-interview answers score 2-3. A 4 is a genuinely strong answer. A 5 is exceptional and should be rare across all four dimensions simultaneously.
+- Even excellent answers have refinement opportunities. There is ALWAYS at least one weakness, even for a 4-rated answer. Common ones for strong answers: missing quantitative details (scale, latency, throughput numbers), unaddressed scaling concerns, no discussion of testing or observability, no tradeoffs weighed against alternative approaches.
+- A 5/5/5/5 across all dimensions is essentially never correct. If you find yourself giving 5/5/5/5, drop at least one dimension to 4 and identify what's missing.
+- You MUST provide 1-3 weaknesses. An empty weaknesses array is a calibration failure.
+- You MUST provide a non-empty suggested_improvement, even for high-scoring answers ("To push this from a 4 to a 5, you could...").
+- If the candidate's answer is short (under 150 words) for a medium/hard question, that itself is usually a depth issue worth calling out.
+
+If candidate says "I don't know" or gives a non-answer (under 30 words of substance), score 0-1 across all dimensions and use the weaknesses to explain what a real answer would have addressed.
+
+Even for poor answers, you must still produce 1-3 strengths — the field is required. For non-answers or very weak answers, find something minimal to credit, such as:
+  - "Acknowledged uncertainty honestly rather than fabricating details"
+  - "Stayed within the relevant topic area"
+  - "Kept the response brief rather than padding with filler"
+
+This isn't grade inflation — these are real (if minor) positives even for weak answers. They give the candidate one true thing to build from.
 """
 
 
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception_type((openai.APIError, openai.APIConnectionError)),
+    retry=retry_if_exception_type(
+        (openai.APIError, openai.APIConnectionError, ValidationError)
+    ),
 )
 async def evaluate_answer(
     question_text: str,
@@ -138,6 +157,9 @@ Evaluate this answer per the rubric. Return the structured JSON."""
     )
 
     data = json.loads(response.choices[0].message.content)
+    # Enforces the min_length / max_length constraints from EvaluationRubric.
+    # On failure, ValidationError propagates → tenacity retries (up to 3x).
+    EvaluationRubric.model_validate(data)
     logger.info(
         "Evaluated answer: clarity=%d structure=%d depth=%d relevance=%d overall=%.1f",
         data["clarity"],
