@@ -14,6 +14,7 @@ from app.db.base import Base
 from app.models.interview_session import QuestionDifficulty, QuestionType
 
 if TYPE_CHECKING:
+    from app.models.interview_answer import InterviewAnswer
     from app.models.interview_session import InterviewSession
 
 
@@ -45,6 +46,10 @@ class InterviewQuestion(Base):
     anchor: Mapped[str] = mapped_column(String(500), nullable=False)
 
     session: Mapped["InterviewSession"] = relationship(back_populates="questions")
+    answers: Mapped[list["InterviewAnswer"]] = relationship(
+        back_populates="question",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<InterviewQuestion {self.session_id}#{self.order_index}>"

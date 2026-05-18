@@ -17,6 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.interview_answer import InterviewAnswer
     from app.models.interview_question import InterviewQuestion
     from app.models.job_description import JobDescription
     from app.models.resume import Resume
@@ -85,6 +86,10 @@ class InterviewSession(Base):
         back_populates="session",
         cascade="all, delete-orphan",
         order_by="InterviewQuestion.order_index",
+    )
+    answers: Mapped[list["InterviewAnswer"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:
